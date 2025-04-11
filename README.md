@@ -13,17 +13,82 @@
 ```shell
 dots add ~/.vimrc  # Beam up your vimrc
 dots               # Teleport to your repo
-git commit -a -m "feat: added vimrc"
+git add -A
+git commit -m "feat: added vimrc"
 ```
 
 No more messy symlinks or manual copying—Dots handles the heavy lifting, so you can focus on exploring the universe of your perfect setup! 🚀
+
+## Installation 🚀
+
+Launch Dots on a new system in minutes with these steps. Get ready to enter orbit!
+
+### Fresh Install 🌟
+
+1. **Install Dots** using our cosmic one-liner:
+   ```shell
+   curl https://dots.frazier.software/install.sh | bash
+   ```
+
+2. **Follow the prompts** to choose your dotfiles repo location (default: `~/.dotfiles`).
+
+3. **Set up your environment** as instructed:
+   ```shell
+   # Add to ~/.bashrc or ~/.zshrc
+   export DOTFILE_PATH="$HOME/.dotfiles"
+   export PATH="$DOTFILE_PATH/bin:$PATH"
+   ```
+   Then reload your shell:
+   ```shell
+   source ~/.bashrc  # or ~/.zshrc
+   ```
+
+4. **Start your mission**:
+   ```shell
+   dots add ~/.vimrc  # Beam up a file
+   dots               # Teleport to repo
+   git add -A
+   git commit -m "feat: added vimrc"
+   ```
+
+### Restoring an Existing Dots Repo 🪐
+
+Got a Dots repo from another galaxy? Here's how to bring it to a new system:
+
+1. **Clone your repo**:
+   ```shell
+   git clone <your-repo-url> ~/.dotfiles
+   ```
+
+2. **Set environment variables**:
+   ```shell
+   # Add to ~/.bashrc or ~/.zshrc
+   export DOTFILE_PATH="$HOME/.dotfiles"
+   export PATH="$DOTFILE_PATH/bin:$PATH"
+   ```
+   Reload your shell:
+   ```shell
+   source ~/.bashrc  # or ~/.zshrc
+   ```
+
+3. **Verify your setup**:
+   ```shell
+   dots diff  # Scan for differences
+   ```
+
+4. **Deploy your dotfiles**:
+   ```shell
+   dots apply  # Beam configs to their destinations
+   ```
+
+Your system is now in sync with your cosmic configs! 🌠
 
 ## Usage 📡
 
 Dots comes with a stellar set of commands to manage your dotfiles. Run `dots --help` to see the full mission briefing:
 
 ```
-⭐ Dots - Dotfile Manager v0.0.1 ⭐
+⭐ Dots - Dotfile Manager v1.0.0 ⭐
 Usage: dots [command] [options]
 
 Commands:
