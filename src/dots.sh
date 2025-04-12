@@ -85,6 +85,13 @@ if [[ "$1" == "add" ]]; then
     dest_dir="$DOTFILE_PATH/root"
   fi
 
+  # Get file permissions (platform-specific)
+  if [[ "$(uname)" == "Darwin" ]]; then
+    perms=$(stat -f "%Lp" "$src_file" | tr -d '\n')
+  else
+    perms=$(stat -c "%a" "$src_file")
+  fi
+
   # Transform hidden dirs and files
   IFS='/' read -ra path_parts <<< "$rel_path"
   for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
@@ -95,10 +102,18 @@ if [[ "$1" == "add" ]]; then
     fi
   done
   if [[ "$filename" == .* ]]; then
-    dest_file="dot_${filename#.}"
+    base_filename="dot_${filename#.}"
   else
-    dest_file="$filename"
+    base_filename="$filename"
   fi
+
+  # Apply permission-based prefixes
+  case "$perms" in
+    600) dest_file="private_${base_filename}" ;;
+    400) dest_file="readonly_${base_filename}" ;;
+    700) dest_file="privatex_${base_filename}" ;;
+    *) dest_file="$base_filename" ;;
+  esac
 
   # Create destination directory
   mkdir -p "$dest_dir" || {
@@ -131,7 +146,7 @@ if [[ "$1" == "apply" ]]; then
           dest_path=""
         fi
 
-        # Transform dot_ prefixes back to hidden dirs and files
+        # Transform dot_ and permission prefixes back
         IFS='/' read -ra path_parts <<< "$rel_path"
         for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
           if [[ "$part" == dot_* ]]; then
@@ -141,7 +156,25 @@ if [[ "$1" == "apply" ]]; then
           fi
         done
         filename="${path_parts[-1]}"
-        if [[ "$filename" == dot_* ]]; then
+        if [[ "$filename" == readonly_dot_* ]]; then
+          dest_path="$dest_path/.${filename#readonly_dot_}"
+          perms=400
+        elif [[ "$filename" == private_dot_* ]]; then
+          dest_path="$dest_path/.${filename#private_dot_}"
+          perms=600
+        elif [[ "$filename" == privatex_dot_* ]]; then
+          dest_path="$dest_path/.${filename#privatex_dot_}"
+          perms=700
+        elif [[ "$filename" == readonly_* ]]; then
+          dest_path="$dest_path/${filename#readonly_}"
+          perms=400
+        elif [[ "$filename" == private_* ]]; then
+          dest_path="$dest_path/${filename#private_}"
+          perms=600
+        elif [[ "$filename" == privatex_* ]]; then
+          dest_path="$dest_path/${filename#privatex_}"
+          perms=700
+        elif [[ "$filename" == dot_* ]]; then
           dest_path="$dest_path/.${filename#dot_}"
         else
           dest_path="$dest_path/$filename"
@@ -171,6 +204,13 @@ if [[ "$1" == "apply" ]]; then
           echo "🌠 Deploy failed! Couldn't copy $repo_file to $dest_path! 🚨"
           exit 1
         }
+
+        # Set permissions if specified
+        if [[ -n "$perms" ]]; then
+          chmod "$perms" "$dest_path" || {
+            echo "🌠 Warning! Couldn't set permissions $perms on $dest_path! 🚨"
+          }
+        fi
       done
     fi
   done
@@ -193,7 +233,7 @@ if [[ "$1" == "diff" ]]; then
           sys_file=""
         fi
 
-        # Transform dot_ prefixes back to hidden dirs and files
+        # Transform dot_ and permission prefixes back
         IFS='/' read -ra path_parts <<< "$rel_path"
         for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
           if [[ "$part" == dot_* ]]; then
@@ -203,7 +243,25 @@ if [[ "$1" == "diff" ]]; then
           fi
         done
         filename="${path_parts[-1]}"
-        if [[ "$filename" == dot_* ]]; then
+        if [[ "$filename" == readonly_dot_* ]]; then
+          sys_file="$sys_file/.${filename#readonly_dot_}"
+          expected_perms=400
+        elif [[ "$filename" == private_dot_* ]]; then
+          sys_file="$sys_file/.${filename#private_dot_}"
+          expected_perms=600
+        elif [[ "$filename" == privatex_dot_* ]]; then
+          sys_file="$sys_file/.${filename#privatex_dot_}"
+          expected_perms=700
+        elif [[ "$filename" == readonly_* ]]; then
+          sys_file="$sys_file/${filename#readonly_}"
+          expected_perms=400
+        elif [[ "$filename" == private_* ]]; then
+          sys_file="$sys_file/${filename#private_}"
+          expected_perms=600
+        elif [[ "$filename" == privatex_* ]]; then
+          sys_file="$sys_file/${filename#privatex_}"
+          expected_perms=700
+        elif [[ "$filename" == dot_* ]]; then
           sys_file="$sys_file/.${filename#dot_}"
         else
           sys_file="$sys_file/$filename"
@@ -212,6 +270,21 @@ if [[ "$1" == "diff" ]]; then
         BLUE='\033[0;34m'
         NC='\033[0m'
         if [[ -f "$sys_file" ]]; then
+          # Check permissions
+          if [[ -n "$expected_perms" ]]; then
+            if [[ "$(uname)" == "Darwin" ]]; then
+              actual_perms=$(stat -f "%Lp" "$sys_file" | tr -d '\n')
+            else
+              actual_perms=$(stat -c "%a" "$sys_file")
+            fi
+            if [[ "$actual_perms" != "$expected_perms" ]]; then
+              echo ""
+              echo -e "🛸 ${BLUE}Permission mismatch for $sys_file: expected $expected_perms, found $actual_perms${NC}"
+              has_diff=1
+            fi
+          fi
+
+          # Check content
           if ! cmp -s "$repo_file" "$sys_file"; then
             echo ""
             echo -e "🛸 ${BLUE}Differences detected in $sys_file:${NC}"
@@ -249,7 +322,7 @@ if [[ "$1" == "sync" ]]; then
           sys_file=""
         fi
 
-        # Transform dot_ prefixes back to hidden dirs and files
+        # Transform dot_ and permission prefixes back
         IFS='/' read -ra path_parts <<< "$rel_path"
         for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
           if [[ "$part" == dot_* ]]; then
@@ -259,7 +332,19 @@ if [[ "$1" == "sync" ]]; then
           fi
         done
         filename="${path_parts[-1]}"
-        if [[ "$filename" == dot_* ]]; then
+        if [[ "$filename" == readonly_dot_* ]]; then
+          sys_file="$sys_file/.${filename#readonly_dot_}"
+        elif [[ "$filename" == private_dot_* ]]; then
+          sys_file="$sys_file/.${filename#private_dot_}"
+        elif [[ "$filename" == privatex_dot_* ]]; then
+          sys_file="$sys_file/.${filename#privatex_dot_}"
+        elif [[ "$filename" == readonly_* ]]; then
+          sys_file="$sys_file/${filename#readonly_}"
+        elif [[ "$filename" == private_* ]]; then
+          sys_file="$sys_file/${filename#private_}"
+        elif [[ "$filename" == privatex_* ]]; then
+          sys_file="$sys_file/${filename#privatex_}"
+        elif [[ "$filename" == dot_* ]]; then
           sys_file="$sys_file/.${filename#dot_}"
         else
           sys_file="$sys_file/$filename"
