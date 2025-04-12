@@ -1,13 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 DOTFILE_PATH="${DOTFILE_PATH:-$HOME/.dotfiles}"
-
-# Check for git
-if ! command -v git &> /dev/null; then
-  echo "🚀 Houston, we have a problem! Git is not installed! Install it to launch your dotfiles into orbit! 🌌"
-  exit 1
-fi
 
 # Help flag
 if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
@@ -25,6 +19,12 @@ if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
   echo "Environment:"
   echo "  DOTFILE_PATH  Set custom dotfiles repo path (default: $HOME/.dotfiles)"
   exit 0
+fi
+
+# Check for git
+if ! command -v git &> /dev/null; then
+  echo "🚀 Houston, we have a problem! Git is not installed! Install it to launch your dotfiles into orbit! 🌌"
+  exit 1
 fi
 
 # Check if dotfiles repo exists
@@ -51,6 +51,58 @@ if [[ ! -d "$DOTFILE_PATH" ]]; then
     exit 1
   fi
 fi
+
+# Function to determine destination path and permissions
+get_dest_path_and_perms() {
+  local section="$1"
+  local repo_file="$2"
+
+  local rel_path=${repo_file#$DOTFILE_PATH/$section/}
+  local perms=""
+
+  local dest_path
+  if [[ "$section" == "home" ]]; then
+    dest_path="$HOME"
+  else
+    dest_path=""
+  fi
+
+  IFS='/' read -ra path_parts <<< "$rel_path"
+  for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
+    if [[ "$part" == dot_* ]]; then
+      dest_path="$dest_path/.${part#dot_}"
+    else
+      dest_path="$dest_path/$part"
+    fi
+  done
+  filename="${path_parts[-1]}"
+  if [[ "$filename" == readonly_dot_* ]]; then
+    dest_path="$dest_path/.${filename#readonly_dot_}"
+    perms=400
+  elif [[ "$filename" == private_dot_* ]]; then
+    dest_path="$dest_path/.${filename#private_dot_}"
+    perms=600
+  elif [[ "$filename" == privatex_dot_* ]]; then
+    dest_path="$dest_path/.${filename#privatex_dot_}"
+    perms=700
+  elif [[ "$filename" == readonly_* ]]; then
+    dest_path="$dest_path/${filename#readonly_}"
+    perms=400
+  elif [[ "$filename" == private_* ]]; then
+    dest_path="$dest_path/${filename#private_}"
+    perms=600
+  elif [[ "$filename" == privatex_* ]]; then
+    dest_path="$dest_path/${filename#privatex_}"
+    perms=700
+  elif [[ "$filename" == dot_* ]]; then
+    dest_path="$dest_path/.${filename#dot_}"
+  else
+    dest_path="$dest_path/$filename"
+  fi
+
+  echo "$dest_path"
+  echo "$perms"
+}
 
 # No args: cd into repo
 if [[ $# -eq 0 ]]; then
@@ -85,6 +137,13 @@ if [[ "$1" == "add" ]]; then
     dest_dir="$DOTFILE_PATH/root"
   fi
 
+  # Get file permissions (platform-specific)
+  if [[ "$(uname)" == "Darwin" ]]; then
+    perms=$(stat -f "%Lp" "$src_file" | tr -d '\n')
+  else
+    perms=$(stat -c "%a" "$src_file")
+  fi
+
   # Transform hidden dirs and files
   IFS='/' read -ra path_parts <<< "$rel_path"
   for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
@@ -95,10 +154,18 @@ if [[ "$1" == "add" ]]; then
     fi
   done
   if [[ "$filename" == .* ]]; then
-    dest_file="dot_${filename#.}"
+    base_filename="dot_${filename#.}"
   else
-    dest_file="$filename"
+    base_filename="$filename"
   fi
+
+  # Apply permission-based prefixes
+  case "$perms" in
+    600) dest_file="private_${base_filename}" ;;
+    400) dest_file="readonly_${base_filename}" ;;
+    700) dest_file="privatex_${base_filename}" ;;
+    *) dest_file="$base_filename" ;;
+  esac
 
   # Create destination directory
   mkdir -p "$dest_dir" || {
@@ -116,36 +183,43 @@ if [[ "$1" == "add" ]]; then
   exit 0
 fi
 
+# Sync command
+if [[ "$1" == "sync" ]]; then
+  for section in home root; do
+    if [[ -d "$DOTFILE_PATH/$section" ]]; then
+      # Collect files to avoid subshell
+      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f -not -name ".*")
+      for repo_file in "${repo_files[@]}"; do
+        # Get destination path
+        readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
+        sys_file="${dest_info[0]}"
+
+        # Check if system file exists
+        if [[ -f "$sys_file" ]]; then
+          # Copy system file to repo with all attributes
+          cp -p "$sys_file" "$repo_file" || {
+            echo "💥 Sync failed! Couldn't copy $sys_file to $repo_file! 🚨"
+            exit 1
+          }
+        fi
+      done
+    fi
+  done
+  echo "🎉 Dotfiles repo synced with latest system versions! Ready for hyperspace! 🚀🌟"
+  exit 0
+fi
+
 # Apply command
 if [[ "$1" == "apply" ]]; then
   for section in home root; do
     if [[ -d "$DOTFILE_PATH/$section" ]]; then
       # Collect files to avoid subshell
-      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
+      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f -not -name ".*")
       for repo_file in "${repo_files[@]}"; do
-        # Determine destination path
-        rel_path=${repo_file#$DOTFILE_PATH/$section/}
-        if [[ "$section" == "home" ]]; then
-          dest_path="$HOME"
-        else
-          dest_path=""
-        fi
-
-        # Transform dot_ prefixes back to hidden dirs and files
-        IFS='/' read -ra path_parts <<< "$rel_path"
-        for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
-          if [[ "$part" == dot_* ]]; then
-            dest_path="$dest_path/.${part#dot_}"
-          else
-            dest_path="$dest_path/$part"
-          fi
-        done
-        filename="${path_parts[-1]}"
-        if [[ "$filename" == dot_* ]]; then
-          dest_path="$dest_path/.${filename#dot_}"
-        else
-          dest_path="$dest_path/$filename"
-        fi
+        # Get destination path and permissions
+        readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
+        dest_path="${dest_info[0]}"
+        perms="${dest_info[1]}"
 
         dest_dir=$(dirname "$dest_path")
         mkdir -p "$dest_dir" || {
@@ -171,6 +245,13 @@ if [[ "$1" == "apply" ]]; then
           echo "🌠 Deploy failed! Couldn't copy $repo_file to $dest_path! 🚨"
           exit 1
         }
+
+        # Set permissions if specified
+        if [[ -n "$perms" ]]; then
+          chmod "$perms" "$dest_path" || {
+            echo "🌠 Warning! Couldn't set permissions $perms on $dest_path! 🚨"
+          }
+        fi
       done
     fi
   done
@@ -184,34 +265,31 @@ if [[ "$1" == "diff" ]]; then
   for section in home root; do
     if [[ -d "$DOTFILE_PATH/$section" ]]; then
       # Collect files to avoid subshell
-      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
+      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f -not -name ".*")
       for repo_file in "${repo_files[@]}"; do
-        rel_path=${repo_file#$DOTFILE_PATH/$section/}
-        if [[ "$section" == "home" ]]; then
-          sys_file="$HOME"
-        else
-          sys_file=""
-        fi
-
-        # Transform dot_ prefixes back to hidden dirs and files
-        IFS='/' read -ra path_parts <<< "$rel_path"
-        for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
-          if [[ "$part" == dot_* ]]; then
-            sys_file="$sys_file/.${part#dot_}"
-          else
-            sys_file="$sys_file/$part"
-          fi
-        done
-        filename="${path_parts[-1]}"
-        if [[ "$filename" == dot_* ]]; then
-          sys_file="$sys_file/.${filename#dot_}"
-        else
-          sys_file="$sys_file/$filename"
-        fi
+        # Get destination path and permissions
+        readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
+        sys_file="${dest_info[0]}"
+        expected_perms="${dest_info[1]}"
 
         BLUE='\033[0;34m'
         NC='\033[0m'
         if [[ -f "$sys_file" ]]; then
+          # Check permissions
+          if [[ -n "$expected_perms" ]]; then
+            if [[ "$(uname)" == "Darwin" ]]; then
+              actual_perms=$(stat -f "%Lp" "$sys_file" | tr -d '\n')
+            else
+              actual_perms=$(stat -c "%a" "$sys_file")
+            fi
+            if [[ "$actual_perms" != "$expected_perms" ]]; then
+              echo ""
+              echo -e "🛸 ${BLUE}Permission mismatch for $sys_file: expected $expected_perms, found $actual_perms${NC}"
+              has_diff=1
+            fi
+          fi
+
+          # Check content
           if ! cmp -s "$repo_file" "$sys_file"; then
             echo ""
             echo -e "🛸 ${BLUE}Differences detected in $sys_file:${NC}"
@@ -231,52 +309,6 @@ if [[ "$1" == "diff" ]]; then
     exit 0
   fi
   echo "🌟 All systems nominal! No differences found between dotfiles and repo! 🚀"
-  exit 0
-fi
-
-# Sync command
-if [[ "$1" == "sync" ]]; then
-  for section in home root; do
-    if [[ -d "$DOTFILE_PATH/$section" ]]; then
-      # Collect files to avoid subshell
-      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
-      for repo_file in "${repo_files[@]}"; do
-        # Determine system path
-        rel_path=${repo_file#$DOTFILE_PATH/$section/}
-        if [[ "$section" == "home" ]]; then
-          sys_file="$HOME"
-        else
-          sys_file=""
-        fi
-
-        # Transform dot_ prefixes back to hidden dirs and files
-        IFS='/' read -ra path_parts <<< "$rel_path"
-        for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
-          if [[ "$part" == dot_* ]]; then
-            sys_file="$sys_file/.${part#dot_}"
-          else
-            sys_file="$sys_file/$part"
-          fi
-        done
-        filename="${path_parts[-1]}"
-        if [[ "$filename" == dot_* ]]; then
-          sys_file="$sys_file/.${filename#dot_}"
-        else
-          sys_file="$sys_file/$filename"
-        fi
-
-        # Check if system file exists
-        if [[ -f "$sys_file" ]]; then
-          # Copy system file to repo with all attributes
-          cp -p "$sys_file" "$repo_file" || {
-            echo "💥 Sync failed! Couldn't copy $sys_file to $repo_file! 🚨"
-            exit 1
-          }
-        fi
-      done
-    fi
-  done
-  echo "🎉 Dotfiles repo synced with latest system versions! Ready for hyperspace! 🚀🌟"
   exit 0
 fi
 

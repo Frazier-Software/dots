@@ -88,7 +88,7 @@ Your system is now in sync with your cosmic configs! 🌠
 Dots comes with a stellar set of commands to manage your dotfiles. Run `dots --help` to see the full mission briefing:
 
 ```
-⭐ Dots - Dotfile Manager v1.0.0 ⭐
+⭐ Dots - Dotfile Manager v1.1.0 ⭐
 Usage: dots [command] [options]
 
 Commands:
