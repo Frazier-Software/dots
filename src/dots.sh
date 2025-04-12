@@ -52,6 +52,58 @@ if [[ ! -d "$DOTFILE_PATH" ]]; then
   fi
 fi
 
+# Function to determine destination path and permissions
+get_dest_path_and_perms() {
+  local section="$1"
+  local repo_file="$2"
+
+  local rel_path=${repo_file#$DOTFILE_PATH/$section/}
+  local perms=""
+
+  local dest_path
+  if [[ "$section" == "home" ]]; then
+    dest_path="$HOME"
+  else
+    dest_path=""
+  fi
+
+  IFS='/' read -ra path_parts <<< "$rel_path"
+  for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
+    if [[ "$part" == dot_* ]]; then
+      dest_path="$dest_path/.${part#dot_}"
+    else
+      dest_path="$dest_path/$part"
+    fi
+  done
+  filename="${path_parts[-1]}"
+  if [[ "$filename" == readonly_dot_* ]]; then
+    dest_path="$dest_path/.${filename#readonly_dot_}"
+    perms=400
+  elif [[ "$filename" == private_dot_* ]]; then
+    dest_path="$dest_path/.${filename#private_dot_}"
+    perms=600
+  elif [[ "$filename" == privatex_dot_* ]]; then
+    dest_path="$dest_path/.${filename#privatex_dot_}"
+    perms=700
+  elif [[ "$filename" == readonly_* ]]; then
+    dest_path="$dest_path/${filename#readonly_}"
+    perms=400
+  elif [[ "$filename" == private_* ]]; then
+    dest_path="$dest_path/${filename#private_}"
+    perms=600
+  elif [[ "$filename" == privatex_* ]]; then
+    dest_path="$dest_path/${filename#privatex_}"
+    perms=700
+  elif [[ "$filename" == dot_* ]]; then
+    dest_path="$dest_path/.${filename#dot_}"
+  else
+    dest_path="$dest_path/$filename"
+  fi
+
+  echo "$dest_path"
+  echo "$perms"
+}
+
 # No args: cd into repo
 if [[ $# -eq 0 ]]; then
   (cd "$DOTFILE_PATH" && exec "$SHELL")
@@ -138,47 +190,10 @@ if [[ "$1" == "apply" ]]; then
       # Collect files to avoid subshell
       mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
       for repo_file in "${repo_files[@]}"; do
-        # Determine destination path
-        rel_path=${repo_file#$DOTFILE_PATH/$section/}
-        if [[ "$section" == "home" ]]; then
-          dest_path="$HOME"
-        else
-          dest_path=""
-        fi
-
-        # Transform dot_ and permission prefixes back
-        IFS='/' read -ra path_parts <<< "$rel_path"
-        for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
-          if [[ "$part" == dot_* ]]; then
-            dest_path="$dest_path/.${part#dot_}"
-          else
-            dest_path="$dest_path/$part"
-          fi
-        done
-        filename="${path_parts[-1]}"
-        if [[ "$filename" == readonly_dot_* ]]; then
-          dest_path="$dest_path/.${filename#readonly_dot_}"
-          perms=400
-        elif [[ "$filename" == private_dot_* ]]; then
-          dest_path="$dest_path/.${filename#private_dot_}"
-          perms=600
-        elif [[ "$filename" == privatex_dot_* ]]; then
-          dest_path="$dest_path/.${filename#privatex_dot_}"
-          perms=700
-        elif [[ "$filename" == readonly_* ]]; then
-          dest_path="$dest_path/${filename#readonly_}"
-          perms=400
-        elif [[ "$filename" == private_* ]]; then
-          dest_path="$dest_path/${filename#private_}"
-          perms=600
-        elif [[ "$filename" == privatex_* ]]; then
-          dest_path="$dest_path/${filename#privatex_}"
-          perms=700
-        elif [[ "$filename" == dot_* ]]; then
-          dest_path="$dest_path/.${filename#dot_}"
-        else
-          dest_path="$dest_path/$filename"
-        fi
+        # Get destination path and permissions
+        readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
+        dest_path="${dest_info[0]}"
+        perms="${dest_info[1]}"
 
         dest_dir=$(dirname "$dest_path")
         mkdir -p "$dest_dir" || {
@@ -226,46 +241,10 @@ if [[ "$1" == "diff" ]]; then
       # Collect files to avoid subshell
       mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
       for repo_file in "${repo_files[@]}"; do
-        rel_path=${repo_file#$DOTFILE_PATH/$section/}
-        if [[ "$section" == "home" ]]; then
-          sys_file="$HOME"
-        else
-          sys_file=""
-        fi
-
-        # Transform dot_ and permission prefixes back
-        IFS='/' read -ra path_parts <<< "$rel_path"
-        for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
-          if [[ "$part" == dot_* ]]; then
-            sys_file="$sys_file/.${part#dot_}"
-          else
-            sys_file="$sys_file/$part"
-          fi
-        done
-        filename="${path_parts[-1]}"
-        if [[ "$filename" == readonly_dot_* ]]; then
-          sys_file="$sys_file/.${filename#readonly_dot_}"
-          expected_perms=400
-        elif [[ "$filename" == private_dot_* ]]; then
-          sys_file="$sys_file/.${filename#private_dot_}"
-          expected_perms=600
-        elif [[ "$filename" == privatex_dot_* ]]; then
-          sys_file="$sys_file/.${filename#privatex_dot_}"
-          expected_perms=700
-        elif [[ "$filename" == readonly_* ]]; then
-          sys_file="$sys_file/${filename#readonly_}"
-          expected_perms=400
-        elif [[ "$filename" == private_* ]]; then
-          sys_file="$sys_file/${filename#private_}"
-          expected_perms=600
-        elif [[ "$filename" == privatex_* ]]; then
-          sys_file="$sys_file/${filename#privatex_}"
-          expected_perms=700
-        elif [[ "$filename" == dot_* ]]; then
-          sys_file="$sys_file/.${filename#dot_}"
-        else
-          sys_file="$sys_file/$filename"
-        fi
+        # Get destination path and permissions
+        readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
+        sys_file="${dest_info[0]}"
+        expected_perms="${dest_info[1]}"
 
         BLUE='\033[0;34m'
         NC='\033[0m'
@@ -314,41 +293,9 @@ if [[ "$1" == "sync" ]]; then
       # Collect files to avoid subshell
       mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
       for repo_file in "${repo_files[@]}"; do
-        # Determine system path
-        rel_path=${repo_file#$DOTFILE_PATH/$section/}
-        if [[ "$section" == "home" ]]; then
-          sys_file="$HOME"
-        else
-          sys_file=""
-        fi
-
-        # Transform dot_ and permission prefixes back
-        IFS='/' read -ra path_parts <<< "$rel_path"
-        for part in "${path_parts[@]::${#path_parts[@]}-1}"; do
-          if [[ "$part" == dot_* ]]; then
-            sys_file="$sys_file/.${part#dot_}"
-          else
-            sys_file="$sys_file/$part"
-          fi
-        done
-        filename="${path_parts[-1]}"
-        if [[ "$filename" == readonly_dot_* ]]; then
-          sys_file="$sys_file/.${filename#readonly_dot_}"
-        elif [[ "$filename" == private_dot_* ]]; then
-          sys_file="$sys_file/.${filename#private_dot_}"
-        elif [[ "$filename" == privatex_dot_* ]]; then
-          sys_file="$sys_file/.${filename#privatex_dot_}"
-        elif [[ "$filename" == readonly_* ]]; then
-          sys_file="$sys_file/${filename#readonly_}"
-        elif [[ "$filename" == private_* ]]; then
-          sys_file="$sys_file/${filename#private_}"
-        elif [[ "$filename" == privatex_* ]]; then
-          sys_file="$sys_file/${filename#privatex_}"
-        elif [[ "$filename" == dot_* ]]; then
-          sys_file="$sys_file/.${filename#dot_}"
-        else
-          sys_file="$sys_file/$filename"
-        fi
+        # Get destination path
+        readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
+        sys_file="${dest_info[0]}"
 
         # Check if system file exists
         if [[ -f "$sys_file" ]]; then
