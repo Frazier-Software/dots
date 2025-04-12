@@ -188,7 +188,7 @@ if [[ "$1" == "sync" ]]; then
   for section in home root; do
     if [[ -d "$DOTFILE_PATH/$section" ]]; then
       # Collect files to avoid subshell
-      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
+      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f -not -name ".*")
       for repo_file in "${repo_files[@]}"; do
         # Get destination path
         readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
@@ -214,7 +214,7 @@ if [[ "$1" == "apply" ]]; then
   for section in home root; do
     if [[ -d "$DOTFILE_PATH/$section" ]]; then
       # Collect files to avoid subshell
-      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
+      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f -not -name ".*")
       for repo_file in "${repo_files[@]}"; do
         # Get destination path and permissions
         readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
@@ -265,7 +265,7 @@ if [[ "$1" == "diff" ]]; then
   for section in home root; do
     if [[ -d "$DOTFILE_PATH/$section" ]]; then
       # Collect files to avoid subshell
-      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
+      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f -not -name ".*")
       for repo_file in "${repo_files[@]}"; do
         # Get destination path and permissions
         readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
