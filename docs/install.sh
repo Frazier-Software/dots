@@ -18,7 +18,9 @@ fi
 # 2) Prompt for DOTFILE_PATH, reading from /dev/tty to work with piped input
 echo "🪐 Select a location for your dotfiles repo (default: $HOME/.dotfiles):"
 read -p "Enter path: " input_path < /dev/tty
-DOTFILE_PATH="${input_path:-$HOME/.dotfiles}"
+input_path="${input_path:-$HOME/.dotfiles}"
+input_path=$(eval echo "$input_path")
+DOTFILE_PATH="$input_path"
 
 # 3) Check if directory already exists
 if [[ -d "$DOTFILE_PATH" ]]; then
