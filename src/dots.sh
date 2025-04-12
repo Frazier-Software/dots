@@ -3,12 +3,6 @@
 VERSION="1.0.0"
 DOTFILE_PATH="${DOTFILE_PATH:-$HOME/.dotfiles}"
 
-# Check for git
-if ! command -v git &> /dev/null; then
-  echo "🚀 Houston, we have a problem! Git is not installed! Install it to launch your dotfiles into orbit! 🌌"
-  exit 1
-fi
-
 # Help flag
 if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
   echo "⭐ Dots - Dotfile Manager v$VERSION ⭐"
@@ -25,6 +19,12 @@ if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
   echo "Environment:"
   echo "  DOTFILE_PATH  Set custom dotfiles repo path (default: $HOME/.dotfiles)"
   exit 0
+fi
+
+# Check for git
+if ! command -v git &> /dev/null; then
+  echo "🚀 Houston, we have a problem! Git is not installed! Install it to launch your dotfiles into orbit! 🌌"
+  exit 1
 fi
 
 # Check if dotfiles repo exists
@@ -183,6 +183,32 @@ if [[ "$1" == "add" ]]; then
   exit 0
 fi
 
+# Sync command
+if [[ "$1" == "sync" ]]; then
+  for section in home root; do
+    if [[ -d "$DOTFILE_PATH/$section" ]]; then
+      # Collect files to avoid subshell
+      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
+      for repo_file in "${repo_files[@]}"; do
+        # Get destination path
+        readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
+        sys_file="${dest_info[0]}"
+
+        # Check if system file exists
+        if [[ -f "$sys_file" ]]; then
+          # Copy system file to repo with all attributes
+          cp -p "$sys_file" "$repo_file" || {
+            echo "💥 Sync failed! Couldn't copy $sys_file to $repo_file! 🚨"
+            exit 1
+          }
+        fi
+      done
+    fi
+  done
+  echo "🎉 Dotfiles repo synced with latest system versions! Ready for hyperspace! 🚀🌟"
+  exit 0
+fi
+
 # Apply command
 if [[ "$1" == "apply" ]]; then
   for section in home root; do
@@ -283,32 +309,6 @@ if [[ "$1" == "diff" ]]; then
     exit 0
   fi
   echo "🌟 All systems nominal! No differences found between dotfiles and repo! 🚀"
-  exit 0
-fi
-
-# Sync command
-if [[ "$1" == "sync" ]]; then
-  for section in home root; do
-    if [[ -d "$DOTFILE_PATH/$section" ]]; then
-      # Collect files to avoid subshell
-      mapfile -t repo_files < <(find "$DOTFILE_PATH/$section" -type f)
-      for repo_file in "${repo_files[@]}"; do
-        # Get destination path
-        readarray -t dest_info < <(get_dest_path_and_perms "$section" "$repo_file")
-        sys_file="${dest_info[0]}"
-
-        # Check if system file exists
-        if [[ -f "$sys_file" ]]; then
-          # Copy system file to repo with all attributes
-          cp -p "$sys_file" "$repo_file" || {
-            echo "💥 Sync failed! Couldn't copy $sys_file to $repo_file! 🚨"
-            exit 1
-          }
-        fi
-      done
-    fi
-  done
-  echo "🎉 Dotfiles repo synced with latest system versions! Ready for hyperspace! 🚀🌟"
   exit 0
 fi
 
