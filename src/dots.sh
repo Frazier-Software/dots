@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 VERSION="1.0.0"
 DOTFILE_PATH="${DOTFILE_PATH:-$HOME/.dotfiles}"
