@@ -92,12 +92,15 @@ Dots comes with a stellar set of commands to manage your dotfiles. Run `dots --h
 Usage: dots [command] [options]
 
 Commands:
-  (no args)    Teleport to the dotfiles repo
-  add <file>   Beam a file into the dotfiles repo
-  apply        Deploy all dotfiles to their target coordinates
-  diff         Scan for differences between dotfiles and their repo versions
-  sync         Update repo with latest system versions of all tracked files
-  -h, --help   Display this mission briefing
+  (no args)        Teleport to the dotfiles repo
+  add <file>       Beam a file into the dotfiles repo
+  apply            Deploy all dotfiles to their target coordinates
+  diff             Scan for differences between dotfiles and their repo versions
+  sync             Update repo with latest system versions of all tracked files
+  encrypt <file>   Securely beam a file into the vault with GPG encryption
+  decrypt          Deploy all encrypted vault files to their target coordinates
+  verify           Scan for differences between vault files and their system versions
+  -h, --help       Display this mission briefing
 
 Environment:
   DOTFILE_PATH  Set custom dotfiles repo path (default: $HOME/.dotfiles)
@@ -111,6 +114,7 @@ Environment:
 - **Git Integration**: Works seamlessly with your git workflow for version control.
 - **Customizable**: Set `DOTFILE_PATH` to any location for ultimate flexibility.
 - **Playful UX**: Space-themed messages make managing dotfiles a blast!
+- **GPG Encryption**: Protect sensitive dotfiles with GPG.
 
 ## Why Dots? 🌑
 
