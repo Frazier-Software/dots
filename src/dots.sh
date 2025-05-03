@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 DOTFILE_PATH="${DOTFILE_PATH:-$HOME/.dotfiles}"
 
 # Help flag

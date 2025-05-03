@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Installation script for dots - the cosmic dotfile manager! 🌌
-VERSION="1.1.0"
+VERSION="1.2.0"
 DOTS_SCRIPT_URL="https://dots.frazier.software/dots.sh"  # Source for the dots script
 
 echo ""
